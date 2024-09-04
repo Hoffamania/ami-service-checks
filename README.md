@@ -46,8 +46,7 @@ One nice aspect of this approach is that it leverages the ephemeral SSH keys use
 
 "It dynamically creates an Ansible inventory file configured to use SSH, runs an SSH server, executes ansible-playbook, and marshals Ansible plays through the SSH server to the machine being provisioned by Packer"
 
-Once I figured out how to get this to work, I wanted to ensure that I only needed 1 playbook that would work across Ubuntu, Debian, Amazon, Linux, etc. 
-
+Once I figured out how to get this to work, I wanted to ensure that I only needed 1 playbook that would work across Ubuntu, Debian, Amazon, Linux, etc.
 
 ```
 provisioner "ansible" {
@@ -66,7 +65,7 @@ With this playbook in the root directory and the Packer provisioner all configur
 
 https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_conditionals.html#conditionals-based-on-ansible-facts
 
-Ansible has a built-in function for Conditionals. It is also able to set the Operating system values as conditionals. This feature is great because I would not want to have to extract those myself with something like:
+Ansible has a built-in function for assertioons as well as conditionals. It is also able to set the Operating system values as conditionals. This is something known as Ansible Facts. This feature is great because I would not want to have to extract those myself with something like:
 
 `cat /etc/os-release | grep PRETTY_NAME
 PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"`
@@ -80,7 +79,6 @@ This modular ability is functional right away. One example of this is that in AW
 SSM can be managed in a few ways depending on the type of Amazon instance. The ability to quickly discern between operating systems and apply the checks made this task easier. Another tool, td-agent, also has a different package name depending on the operating system. This approach allowed me to take those types of variances into consideration.
 
 
-
 Please take a look at the playbook and try it out.
 
 ## Further reading and other links
@@ -90,4 +88,5 @@ https://mywiki.wooledge.org/BashWeaknesses
 https://docs.ansible.com/ansible/2.9/modules/assert_module.html
 
 https://docs.ansible.com/ansible/latest/collections/ansible/builtin/assert_module.html
----
+
+https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_vars_facts.html
