@@ -1,10 +1,11 @@
 ---
-  ### This Playbook is intended to check for the installation and status of certain agents.
+  ### This Playbook can be used to check for the installation and status of certain agents.
   ### This would run on an AMI prior to completion of a Monthly image build.
   ### In our example we are using Datadog for telemetry, TD-Agent sending to Sumologic for logging and SSM-Agent(aws config).
   ### Crowdstrike Falcon sensor is a very popular tool for CVE scanning etc. We will also use that as an example and check if it is installed and running. 
-  ## The playbook uses the ansible_facts module to check the status of certain services.
+  ### The playbook uses the ansible_facts module to check the status of certain services.
   ### The Linux versions this can work with are CentOs, Debian, Ubuntu, Amazon Linux 2 and Amazon Linux 2023. 
+  ###
   - hosts: all
     become: true
     gather_facts: true
