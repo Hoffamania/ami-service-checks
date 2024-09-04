@@ -1,0 +1,147 @@
+---
+  ### This Playbook is intended to check for the installation and status of certain agents.
+  ### This would run on an AMI prior to completion of a Monthly image build.
+  ### In our example we are using Datadog for telemetry, TD-Agent sending to Sumologic for logging and SSM-Agent(aws config).
+  ### Crowdstrike Falcon sensor is a very popular tool for CVE scanning etc. The playbook uses the ansible_facts module to check the systemd 
+  ### status of the services we are concerned with. The Packer Ansible integration allows us to use the same SSH session. 
+  ### The Linux versions this can work with are CentOs, Debian, Ubuntu, Amazon Linux 2 and Amazon Linux 2023. 
+  - hosts: all
+    become: true
+    gather_facts: true
+    tasks:
+      - name: "Gather system information with Ansible builtin debug module. Set variable for ansible_facts"
+        ansible.builtin.debug:
+          var: ansible_facts
+    
+      - name: "Check status of amazon-ssm-agent service"
+        service_facts:
+      
+      - name: "See the state of the ssm-agent service on the image."
+        debug:
+          msg: "{{ansible_facts.services['amazon-ssm-agent.service'].state}}"
+        when: (ansible_facts['distribution'] == "CentOS") or
+              (ansible_facts['distribution'] == "Debian") or 
+              (ansible_facts['distribution'] == "Rocky")  or
+              (ansible_facts['distribution'] == "Amazon" and ansible_facts['distribution_major_version'] == "2") or
+              (ansible_facts['distribution'] == "Amazon" and ansible_facts['distribution_major_version'] == "2023")
+
+      - name: "Verify ssm is running on the image"
+        assert:
+          that:
+          - "'{{ansible_facts.services['amazon-ssm-agent.service'].state}}' == 'running'"
+          fail_msg: "ssm is not installed"
+          success_msg: "SSM agent is installed and running"
+        when: (ansible_facts['distribution'] == "CentOS") or
+              (ansible_facts['distribution'] == "Debian") or
+              (ansible_facts['distribution'] == "Rocky")  or
+              (ansible_facts['distribution'] == "Amazon" and ansible_facts['distribution_major_version'] == "2") or
+              (ansible_facts['distribution'] == "Amazon" and ansible_facts['distribution_major_version'] == "2023")
+
+
+     #### Ubuntu AMIs use snap for ssm management https://docs.aws.amazon.com/systems-manager/latest/userguide/agent-install-ubuntu-64-snap.html
+      - name: "Verify ssm is running on Ubuntu images via the snap service."
+        assert:
+          that:
+          - "'{{ansible_facts.services['snap.amazon-ssm-agent.amazon-ssm-agent.service'].state}}' == 'running'"
+          fail_msg: "ssm via snap is not installed"
+          success_msg: "SSM agent is installed and running"
+        when: (ansible_facts['distribution'] == "Ubuntu")
+      
+      - name: "Check status of Crowdstrike Falcon sensor agent service"
+        service_facts:
+      
+      - name: "Register the state of the Falcon Sensor service."
+        debug:
+          msg: "{{ansible_facts.services['falcon-sensor.service'].state}}"
+      
+      - name: "Verify Falcon Sensor is running on the image."
+        assert:
+          that:
+          - "'{{ansible_facts.services['falcon-sensor.service'].state}}' == 'running'"
+          fail_msg: "Falcon Sensor is not installed"
+          success_msg: "Falcon Sensor is installed and running"
+      
+      - name: "Check status of the Datadog Agent service."
+        service_facts:
+      
+      - name: "Register the state of the Datadog Agent service."
+        debug:
+          msg: "{{ansible_facts.services['datadog-agent.service'].state}}"
+      
+      - name: "Verify datadog agent is present"
+        assert:
+          that:
+            (ansible_facts.services['datadog-agent.service'].state == "inactive") or
+            (ansible_facts.services['datadog-agent.service'].state == "running") or 
+            (ansible_facts.services['datadog-agent.service'].state == "stopped")
+          fail_msg: "Datadog is not installed"
+          success_msg: "Datadog agent is present on the image"
+      
+      - name: "Check status of the td-agent service. It should be present and inactive"
+        service_facts:
+      
+      - name: "See the state of td-agent service.(Sumologic)"
+        debug:
+          msg: "{{ansible_facts.services['td-agent.service'].state}}"
+        when: (ansible_facts['distribution'] == "CentOS") or
+              (ansible_facts['distribution'] == "Ubuntu") or
+              (ansible_facts['distribution'] == "Amazon" and ansible_facts['distribution_major_version'] == "2")
+      
+      - name: "Verify td-agent is present and the service is set up."
+        assert:
+          that:
+            "'{{ansible_facts.services['td-agent.service'].state}}' == 'inactive'"
+          fail_msg: "Treasure Data Agent is not installed"
+          success_msg: "Treasure Data (Sumo Logic) agent is installed and inactive or stopped."
+        when: (ansible_facts['distribution'] == "CentOS") or
+              (ansible_facts['distribution'] == "Ubuntu") or 
+              (ansible_facts['distribution'] == "Amazon" and ansible_facts['distribution_major_version'] == "2")
+      
+      - name: "Check status of the fluentd service. It should be present and inactive"
+        service_facts:
+
+      - name: "See the state of fluentd service.(Sumologic)"
+        debug:
+          msg: "{{ansible_facts.services['fluentd.service'].state}}"
+        when: (ansible_facts['distribution'] == "Amazon" and ansible_facts['distribution_major_version'] == "2023") or
+              (ansible_facts['distribution'] == "Debian") or 
+              (ansible_facts['distribution'] == "Rocky")
+              
+      
+      - name: "Check for fluentd on Amazon Linux 2023, Debian and Rocky."
+        assert:
+          that:
+            "'{{ansible_facts.services['fluentd.service'].state}}' == 'inactive'"
+          fail_msg: "Fluentd (Treasure Data) "
+          success_msg: "Fluentd (Sumo Logic) agent is installed and inactive or stopped."
+        when: (ansible_facts['distribution'] == "Amazon" and ansible_facts['distribution_major_version'] == "2023") or
+              (ansible_facts['distribution'] == "Debian") or 
+              (ansible_facts['distribution'] == "Rocky")
+
+ ###These next steps check that Vault is installed and attempts to confirm the correct path.
+
+      - name: "Check status of Hashicorp Vault service. It should be present and inactive"
+        service_facts:
+      
+      - name: "See the state of service <vault>."
+        debug:
+          msg: "{{ansible_facts.services['vault.service'].state}}"
+      
+      - name: "Verify vault is present"
+        assert:
+          that:
+          - "'{{ansible_facts.services['vault.service'].state}}' == 'inactive'"
+          fail_msg: "Vault is not installed"
+          success_msg: "Hashicorp Vault CLI is installed and inactive"
+      
+      - name: "Register Vault installation status"
+        ansible.builtin.stat:
+          path: /bin/vault
+        register: vault_installed
+        tags: register-vault
+        
+      - name: "Check vault installation status"
+        fail:
+          msg: "Vault binary is not installed"
+        when: vault_installed.stat.path != '/bin/vault'
+...
