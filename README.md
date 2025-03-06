@@ -1,11 +1,9 @@
-# Ansible Playbook to detect installed Services in Amazon Machine Images 
-
-**Hello!** I appreciate your interest in this file.
-I am outlining a challenge I encountered when verifying running services on a newly built Packer Linux Amazon machine image. I will make a few assumptions regarding previous knowledge of AMIs and some Packer experience. 
+# Ansible Playbook to detect installed Services in Amazon Machine Imaglo!** I appreciate your interest in this file.
+I wanted to share with you a challenge I encountered when verifying running services on a newly built Packer Linux Amazon machine image. I will make a few assumptions regarding previous knowledge of AMIs and some Packer experience. 
 
 ## Links and Research
 
-You have likely encountered Amazon machine images in your work, but if you want to delve deeper, I recommend reading the documentation to enhance your understanding. 
+You have probably encountered machine images in your work, but if you want to delve deeper, I would recommend reading the documentation to enhance your understanding. 
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/creating-an-ami-ebs.html
 
 I will maybe create another post in the future with more details on the Packer build steps, but for now, you should check out their docs to get familiar with the Amazon Provisioner:
@@ -21,32 +19,32 @@ If you watch this, you will notice that they briefly mention using the Ansible p
 
 My provisioning, installations, and everything else are part of the build, so I didn't need to rewrite that in Ansible. 
 
-The example workflows all involved launching one of the AMIs you had built and performing other scans. Either using another set of tools or using a "Pre-Authorized Appliance" from AWS. Here is an example: https://aws.amazon.com/marketplace/reviews/reviews-list/B01LXCD58S
+The example workflows all involved launching one of the AMIs you had built and performing other scans, using another set of tools or a "Pre-Authorized Appliance" from AWS. Here is an example: https://aws.amazon.com/marketplace/reviews/reviews-list/B01LXCD58S.
 
 
 ### What I learned
 This approach would increase my complexity and introduce further overhead, such as new keys, managing key lifecycles, and developing permission models. I would also have to figure out how to report and monitor these findings. 
 
-This approach all seemed like ***pre-mature over-optimization*** from the start. (This is usually something that will thwart productivity) 
+This approach all seemed like ***premature over-optimization*** from the start. (This is usually something that will thwart productivity.) 
 
 I decided to shift this process left and actually work it out before the AMI is shared across all of the accounts in the organization.
 
 ### What would the solution look like?
-I initially thought the easiest way to do this would be to use another script (either Bash or Python) and create some conditionals.
+The easiest way to do this would be to use another script (either Bash or Python) and create some conditionals.
 
 In theory, it seemed trivial to obtain the operating system's list of running services and create a loop of only the services I was interested in.
 
 Then, traverse over the loop and call out exceptions as needed. No big deal, right? As I started, I soon found that the layers of abstraction would be an issue. 
 
-For instance, the Packer process, which would handle the shell provisioning or scripting, runs from within a Docker container and uses an SSH session to instantiate the new AMI. This makes it challenging to interpret variables or certain strings and pass them along. 
+For instance, the Packer process, which handles shell provisioning or scripting, runs from within a Docker container and uses an SSH session to instantiate the new AMI. This makes it challenging to interpret variables or certain strings and pass them along. 
 
 I thought about it more and started testing the Ansible Packer provisioner. https://developer.hashicorp.com/packer/integrations/hashicorp/ansible/latest/components/provisioner/ansible
 
 One nice aspect of this approach is that it leverages the ephemeral SSH keys used in the Packer session.
 
-"It dynamically creates an Ansible inventory file configured to use SSH, runs an SSH server, executes ansible-playbook, and marshals Ansible plays through the SSH server to the machine being provisioned by Packer"
+"It dynamically creates an Ansible inventory file configured to use SSH, runs an SSH server, executes ansible-playbook, and marshals Ansible plays through the SSH server to the machine being provisioned by Packer."
 
-Once I figured out how to get this to work, I wanted to ensure that I only needed 1 playbook that would work across Ubuntu, Debian, Amazon, Linux, etc.
+Once I figured out how to make this work, I wanted to ensure that I only needed one playbook that would work across Ubuntu, Debian, Amazon, Linux, etc.
 
 ```
 provisioner "ansible" {
@@ -59,24 +57,24 @@ provisioner "ansible" {
   }
 }
 ```
-With this playbook in the root directory and the Packer provisioner all configured, I was ready to start debugging the operating systems and extracting information from them. Note the extra arguments here. The -vv is for verbosity. This can be turned off if you prefer. The other key component here is the --check switch. This ensures that these commands are only printed. This is the equivalent of a "dry run" meaning no changes will be made but we can read , debug and create variables to loop over. Keep reading to see how.
+With this playbook in the root directory and the Packer provisioner all configured, I was ready to start debugging the operating systems and extracting information from them. Note the extra arguments here. The -vv is for verbosity. This can be turned off if you prefer. The other key component here is the --check switch. This ensures that these commands are only printed. This is the equivalent of a "dry run," meaning no changes will be made, but we can read, debug, and create variables to loop over. Keep reading to see how.
 
 ## Making Progress
 
 https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_conditionals.html#conditionals-based-on-ansible-facts
 
-Ansible has a built-in function for assertioons as well as conditionals. It is also able to set the Operating system values as conditionals. This is something known as Ansible Facts. This feature is great because I would not want to have to extract those myself with something like:
+Ansible has a built-in function for assertions as well as conditionals. It is also able to set the Operating system values as conditionals. This is something known as Ansible Facts. This feature is great because I would not want to have to extract those myself with something like:
 
 `cat /etc/os-release | grep PRETTY_NAME
 PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"`
 
 I will allow the comments to explain how the playbook would work on your systems. I will use some mainstream tools and agents that you may find in a standard corporate enterprise.
 
-Another aspect that I like about this approach is the portability of it. If I had only used Bash or Python I may encounter more errors across different operating systems and environments. I may have also had some inconsistent results when probing the operating system.
+Another aspect of this approach that I like is its portability. If I had only used Bash or Python, I may have encountered more errors across different operating systems and environments. I may also have had inconsistent results when probing the operating system.
 
-This modular ability is functional right away. One example of this is that in AWS, there is a security tool called SSM. https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html
+This modular ability is functional right away. One example of this is that in AWS, there is a security tool called SSM. https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html.
 
-SSM can be managed in a few ways depending on the type of Amazon instance. The ability to quickly discern between operating systems and apply the checks made this task easier. Another tool, td-agent, also has a different package name depending on the operating system. This approach allowed me to take those types of variances into consideration.
+SSM can be managed in a few ways, depending on the type of Amazon instance. The ability to quickly discern between operating systems and apply the checks made this task easier. Another tool, td-agent, has a different package name depending on the operating system. This approach allowed me to consider those types of variances.
 
 
 Please take a look at the playbook and try it out.
