@@ -1,4 +1,6 @@
-# Ansible Playbook to detect installed Services in Amazon Machine Imaglo!** I appreciate your interest in this file.
+# Ansible Playbook to detect installed Services in Amazon Machine Images!** 
+
+I appreciate your interest in this file.
 I wanted to share with you a challenge I encountered when verifying running services on a newly built Packer Linux Amazon machine image. I will make a few assumptions regarding previous knowledge of AMIs and some Packer experience. 
 
 ## Links and Research
