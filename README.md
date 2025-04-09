@@ -1,4 +1,4 @@
-# 🧪 ami-service-checks
+# 🧪 ami-service-checks for all
 
 ![README Glow-Up](https://img.shields.io/badge/README-Glow--Up-10CFC9?style=flat-square&logo=github)
 ![Golden AMI Verified](https://img.shields.io/badge/Golden_AMI-Validated_%26_Glowed-Up-FBBF24?style=flat-square&logo=amazonaws&logoColor=black)
