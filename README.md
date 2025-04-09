@@ -1,92 +1,106 @@
-# Ansible Playbook to detect installed Services in Amazon Machine Images!** 
 
-I appreciate your interest in this file.
-I wanted to share with you a challenge I encountered when verifying running services on a newly built Packer Linux Amazon machine image. I will make a few assumptions regarding previous knowledge of AMIs and some Packer experience. 
+# 🧪 ami-service-checks
 
-## Links and Research
+**A reusable Ansible playbook for validating AMI readiness during Packer builds.**  
+Make sure your golden images are actually ready — without brittle shell scripts.
 
-You have probably encountered machine images in your work, but if you want to delve deeper, I would recommend reading the documentation to enhance your understanding. 
-https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/creating-an-ami-ebs.html
+---
 
-I will maybe create another post in the future with more details on the Packer build steps, but for now, you should check out their docs to get familiar with the Amazon Provisioner:
+## 🔍 Why This Exists
 
-https://developer.hashicorp.com/packer/integrations/hashicorp/amazon
+Golden images are great — until your Vault agent doesn’t start, SSHD fails silently, or your observability stack is missing.  
+This playbook gives you **early failure visibility** by validating runtime services *before the AMI is ever shared*.
 
-Before I share how I arrived at the solution, I want to share a few more links I used to research this and see how others tackled this problem.
+✅ Lightweight  
+✅ Read-only  
+✅ Deterministic  
+✅ CI/CD friendly
 
-This post from a cloud engineer at Experian got me thinking about going beyond the build process to validate. 
-https://www.hashicorp.com/resources/managing-a-golden-image-factory-across-all-major-cloud-platforms
+---
 
-If you watch this, you will notice that they briefly mention using the Ansible provisioner to pull down all the agents, set up the hardening configs, etc.
+## 🧭 Lifecycle Diagram (Mermaid.js)
 
-My provisioning, installations, and everything else are part of the build, so I didn't need to rewrite that in Ansible. 
+```mermaid
+flowchart TD
+  A[Packer CLI] --> B[Loads Packer Template (HCL)]
+  B --> C[Authenticates with AWS via IAM Role]
+  C --> D[Launch EC2 Builder Instance]
+  D --> E[Provision with Ansible (Local)]
+  E --> F[Run service-check-playbook.yml]
 
-The example workflows all involved launching one of the AMIs you had built and performing other scans, using another set of tools or a "Pre-Authorized Appliance" from AWS. Here is an example: https://aws.amazon.com/marketplace/reviews/reviews-list/B01LXCD58S.
+  subgraph F [Run service-check-playbook.yml]
+    F1[Gather facts (always)]
+    F2[If Amazon Linux 2 → Check amazon-ssm-agent]
+    F3[If Amazon Linux 2023 → Check vault & sshd]
+    F4[If Rocky → Check vault & sshd]
+    F5[If Debian → Check vault & sshd]
+    F6[If Ubuntu → Check vault & sshd]
+    F7[All → Check datadog-agent (if present)]
+    F8[All → Check td-agent (if present)]
+  end
 
+  F --> G{All checks passed?}
+  G -->|Yes| H[📦 Create Golden AMI]
+  G -->|No| I[❌ Abort Build – Fail Early]
+  H --> J[Use AMI in CI/CD or Autoscaling Pipelines]
 
-### What I learned
-This approach would increase my complexity and introduce further overhead, such as new keys, managing key lifecycles, and developing permission models. I would also have to figure out how to report and monitor these findings. 
-
-This approach all seemed like ***premature over-optimization*** from the start. (This is usually something that will thwart productivity.) 
-
-I decided to shift this process left and actually work it out before the AMI is shared across all of the accounts in the organization.
-
-### What would the solution look like?
-The easiest way to do this would be to use another script (either Bash or Python) and create some conditionals.
-
-In theory, it seemed trivial to obtain the operating system's list of running services and create a loop of only the services I was interested in.
-
-Then, traverse over the loop and call out exceptions as needed. No big deal, right? As I started, I soon found that the layers of abstraction would be an issue. 
-
-For instance, the Packer process, which handles shell provisioning or scripting, runs from within a Docker container and uses an SSH session to instantiate the new AMI. This makes it challenging to interpret variables or certain strings and pass them along. 
-
-I thought about it more and started testing the Ansible Packer provisioner. https://developer.hashicorp.com/packer/integrations/hashicorp/ansible/latest/components/provisioner/ansible
-
-One nice aspect of this approach is that it leverages the ephemeral SSH keys used in the Packer session.
-
-"It dynamically creates an Ansible inventory file configured to use SSH, runs an SSH server, executes ansible-playbook, and marshals Ansible plays through the SSH server to the machine being provisioned by Packer."
-
-Once I figured out how to make this work, I wanted to ensure that I only needed one playbook that would work across Ubuntu, Debian, Amazon, Linux, etc.
-
+  style H fill:#c6f6d5,stroke:#38a169
+  style I fill:#fed7d7,stroke:#e53e3e
+  style A fill:#f0f9ff,stroke:#2b6cb0
+  style F fill:#ebf8ff,stroke:#4299e1
 ```
-provisioner "ansible" {
-    extra_arguments = [
-        "--check",
-        "-vv"
-      ]
 
-    playbook_file = "../../service-check-playbook.yml"
-  }
+---
+
+## 📸 Illustrated Version
+
+Prefer visuals? Here's a full-color version with icons and metaphors:
+
+👉 [View `ami_lifecycle_ansible_validation_remixed.png`](./ami_lifecycle_ansible_validation_remixed.png)  
+👉 [Or download mobile-friendly version](./A_flowchart_infographic_illustrates_the_process_of.png)
+
+---
+
+## 🛠 How It Works
+
+1. Packer boots an EC2 instance
+2. Ansible runs **locally inside** the image being built
+3. The playbook performs **read-only validation** of services and OS traits
+4. Failing checks abort the build early
+
+---
+
+## ✅ Services Validated
+
+| OS Condition         | Validations Performed                   |
+|----------------------|-----------------------------------------|
+| Amazon Linux 2       | Check for `amazon-ssm-agent`            |
+| Amazon Linux 2023    | Check `vault`, `sshd`                   |
+| Rocky Linux          | Check `vault`, `sshd`                   |
+| Debian               | Check `vault`, `sshd`                   |
+| Ubuntu               | Check `vault`, `sshd`                   |
+| All Distros (if present) | Check `datadog-agent`, `td-agent`   |
+
+---
+
+## 🧾 Example Packer Config
+
+```hcl
+provisioner "ansible-local" {
+  playbook_file    = "service-check-playbook.yml"
+  extra_arguments  = ["--check"]
 }
 ```
-With this playbook in the root directory and the Packer provisioner all configured, I was ready to start debugging the operating systems and extracting information from them. Note the extra arguments here. The -vv is for verbosity. This can be turned off if you prefer. The other key component here is the --check switch. This ensures that these commands are only printed. This is the equivalent of a "dry run," meaning no changes will be made, but we can read, debug, and create variables to loop over. Keep reading to see how.
 
-## Making Progress
+---
 
-https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_conditionals.html#conditionals-based-on-ansible-facts
+## 📚 References
 
-Ansible has a built-in function for assertions as well as conditionals. It is also able to set the Operating system values as conditionals. This is something known as Ansible Facts. This feature is great because I would not want to have to extract those myself with something like:
+- [Packer Ansible Local Docs](https://developer.hashicorp.com/packer/plugins/provisioners/ansible/ansible-local)
+- [Ansible Facts & Variables](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_vars_facts.html)
+- [Checkov (Security Scanning)](https://www.checkov.io/)
+- [Best Practices for AMI Hardening (AWS)](https://aws.amazon.com/premiumsupport/knowledge-center/ami-hardening/)
 
-`cat /etc/os-release | grep PRETTY_NAME
-PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"`
+---
 
-I will allow the comments to explain how the playbook would work on your systems. I will use some mainstream tools and agents that you may find in a standard corporate enterprise.
-
-Another aspect of this approach that I like is its portability. If I had only used Bash or Python, I may have encountered more errors across different operating systems and environments. I may also have had inconsistent results when probing the operating system.
-
-This modular ability is functional right away. One example of this is that in AWS, there is a security tool called SSM. https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html.
-
-SSM can be managed in a few ways, depending on the type of Amazon instance. The ability to quickly discern between operating systems and apply the checks made this task easier. Another tool, td-agent, has a different package name depending on the operating system. This approach allowed me to consider those types of variances.
-
-
-Please take a look at the playbook and try it out.
-
-## Further reading and other links
-
-https://mywiki.wooledge.org/BashWeaknesses
-
-https://docs.ansible.com/ansible/2.9/modules/assert_module.html
-
-https://docs.ansible.com/ansible/latest/collections/ansible/builtin/assert_module.html
-
-https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_vars_facts.html
+*Brought to you by an SRE who prefers certainty over surprise.* 🧠🔐
