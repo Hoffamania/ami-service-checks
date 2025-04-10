@@ -1,6 +1,9 @@
-# 🧪 ami-service-checks
+# 🧪 ami-service-checks for all
 
 ![README Glow-Up](https://img.shields.io/badge/README-Glow--Up-10CFC9?style=flat-square&logo=github)
+![Golden AMI Verified](https://img.shields.io/badge/Golden_AMI-Validated_&_Glowed--Up-FBBF24?style=flat-square)
+![No Bash Needed](https://img.shields.io/badge/Provisioning-No_Bash_Needed-4ADE80?style=flat-square)
+
 
 **A reusable Ansible playbook for validating AMI readiness during Packer builds.**  
 Make sure your golden images are actually ready — without brittle shell scripts.
