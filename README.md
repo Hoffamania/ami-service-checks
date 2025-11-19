@@ -1,66 +1,64 @@
-# 🧪 ami-service-checks for all
+# ami-service-checks
 
-![README Glow-Up](https://img.shields.io/badge/README-Glow--Up-10CFC9?style=flat-square&logo=github)
-![Golden AMI Verified](https://img.shields.io/badge/Golden_AMI-Validated_&_Glowed--Up-FBBF24?style=flat-square)
-![No Bash Needed](https://img.shields.io/badge/Provisioning-No_Bash_Needed-4ADE80?style=flat-square)
+**Ansible playbook for validating service installation and state during AMI builds.**
 
-
-**A reusable Ansible playbook for validating AMI readiness during Packer builds.**  
-Make sure your golden images are actually ready — without brittle shell scripts.
+Validates that required services are installed and in the correct state before Packer finalizes the AMI. Detects misconfigured or missing services before the image reaches production.
 
 ---
 
-## 🔍 Why This Exists
+## Purpose
 
-Golden images are great — until your Vault agent doesn’t start, SSHD fails silently, or your observability stack is missing.  
-This playbook gives you **early failure visibility** by validating runtime services *before the AMI is ever shared*.
+Detects service configuration problems during AMI build rather than after deployment.
 
-✅ Lightweight  
-✅ Read-only  
-✅ Deterministic  
-✅ CI/CD friendly
-
----
-
-## 🧭 Lifecycle Diagram
-
-This image shows how Packer, AWS, and Ansible interact to validate your AMI at build time:
-
-![Flowchart showing Packer building and validating an AMI using Ansible](./ami_lifecycle_ansible_validation_remixed.png)
+**Validation approach:**
+- Read-only checks via Ansible `service_facts` and `stat` modules
+- Runs locally inside the AMI during Packer provisioning
+- Fails Packer build if any service check fails
+- Supports Amazon Linux 2/2023, CentOS, Debian, Rocky Linux, Ubuntu
 
 ---
 
-## 📸 Illustrated Version
+## Workflow
 
-Prefer visuals? Here's a mobile-friendly version too:
-
-👉 [Download alternate mobile-friendly version](./A_flowchart_infographic_illustrates_the_process_of.png)
-
----
-
-## 🛠 How It Works
-
-1. Packer boots an EC2 instance
-2. Ansible runs **locally inside** the image being built
-3. The playbook performs **read-only validation** of services and OS traits
-4. Failing checks abort the build early
+1. Packer boots EC2 instance from base AMI
+2. Packer installs Ansible on the instance
+3. Packer runs playbook locally inside the instance
+4. Playbook validates service installation and state
+5. Packer aborts build if validation fails
+6. Packer creates AMI if validation succeeds
 
 ---
 
 ## ✅ Services Validated
 
-| OS Condition         | Validations Performed                   |
-|----------------------|-----------------------------------------|
-| Amazon Linux 2       | Check for `amazon-ssm-agent`            |
-| Amazon Linux 2023    | Check `vault`, `sshd`                   |
-| Rocky Linux          | Check `vault`, `sshd`                   |
-| Debian               | Check `vault`, `sshd`                   |
-| Ubuntu               | Check `vault`, `sshd`                   |
-| All Distros (if present) | Check `datadog-agent`, `td-agent`   |
+### All Distributions
+
+| Service              | Expected State | Notes                           |
+|----------------------|----------------|---------------------------------|
+| `vault`              | inactive       | Checks service and `/bin/vault` binary |
+| `datadog-agent`      | running, inactive, or stopped | Any state acceptable |
+| `falcon-sensor`      | running        | Crowdstrike security agent      |
+
+### Distribution-Specific Checks
+
+| Distribution         | Service         | Expected State | Service Name                    |
+|----------------------|-----------------|----------------|---------------------------------|
+| Amazon Linux 2       | SSM Agent       | running        | `amazon-ssm-agent.service`      |
+| Amazon Linux 2       | TD-Agent        | inactive       | `td-agent.service`              |
+| Amazon Linux 2023    | SSM Agent       | running        | `amazon-ssm-agent.service`      |
+| Amazon Linux 2023    | Fluentd         | inactive       | `fluentd.service`               |
+| CentOS               | SSM Agent       | running        | `amazon-ssm-agent.service`      |
+| CentOS               | TD-Agent        | inactive       | `td-agent.service`              |
+| Debian               | SSM Agent       | running        | `amazon-ssm-agent.service`      |
+| Debian               | Fluentd         | inactive       | `fluentd.service`               |
+| Rocky Linux          | SSM Agent       | running        | `amazon-ssm-agent.service`      |
+| Rocky Linux          | Fluentd         | inactive       | `fluentd.service`               |
+| Ubuntu               | SSM Agent       | running        | `snap.amazon-ssm-agent.amazon-ssm-agent.service` (snap) |
+| Ubuntu               | TD-Agent        | inactive       | `td-agent.service`              |
 
 ---
 
-## 🧾 Example Packer Config
+## Packer Integration
 
 ```hcl
 provisioner "ansible-local" {
@@ -71,7 +69,7 @@ provisioner "ansible-local" {
 
 ---
 
-## 📚 References
+## References
 
 - [Packer Ansible Local Docs](https://developer.hashicorp.com/packer/plugins/provisioners/ansible/ansible-local)
 - [Ansible Facts & Variables](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_vars_facts.html)
@@ -80,4 +78,8 @@ provisioner "ansible-local" {
 
 ---
 
-*Brought to you by an SRE who prefers certainty over surprise.* 🧠🔐
+## Diagrams
+
+Visual representations of the AMI validation workflow:
+- [AMI lifecycle with Ansible validation](./ami_lifecycle_ansible_validation_remixed.png)
+- [Mobile-friendly flowchart](./A_flowchart_infographic_illustrates_the_process_of.png)
