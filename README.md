@@ -20,6 +20,67 @@ Detects service configuration problems during AMI build rather than after deploy
 
 ## Workflow
 
+```mermaid
+flowchart TD
+    Start([🔧 Packer CLI]) --> Template[📄 Load HCL/JSON Template]
+    Template --> Auth[🔐 AWS Authentication]
+    Auth --> EC2[☁️ Launch EC2 Instance<br/>from Base AMI]
+    EC2 --> Install[📦 Install Ansible]
+    Install --> Copy[📋 Copy Playbook to Instance]
+    Copy --> Run[▶️ Run Playbook Locally]
+    Run --> Facts[🔍 Gather ansible_facts]
+
+    Facts --> CheckAll{🌍 All Distributions}
+    CheckAll --> Vault[🔒 Vault: inactive<br/>+ /bin/vault exists]
+    CheckAll --> Datadog[📊 Datadog: any state]
+    CheckAll --> Falcon[🛡️ Falcon Sensor: running]
+
+    Facts --> CheckDist{🐧 Distribution-Specific}
+
+    CheckDist --> AL2Group[Amazon Linux 2]
+    AL2Group --> AL2SSM[📡 SSM Agent: running]
+    AL2Group --> AL2TD[📝 TD-Agent: inactive]
+
+    CheckDist --> AL2023Group[Amazon Linux 2023]
+    AL2023Group --> AL2023SSM[📡 SSM Agent: running]
+    AL2023Group --> AL2023Fluent[📝 Fluentd: inactive]
+
+    CheckDist --> UbuntuGroup[Ubuntu]
+    UbuntuGroup --> UbuntuSSM[📡 SSM Agent via snap: running]
+    UbuntuGroup --> UbuntuTD[📝 TD-Agent: inactive]
+
+    CheckDist --> RockyGroup[Rocky/Debian/CentOS]
+    RockyGroup --> RockySSM[📡 SSM Agent: running]
+    RockyGroup --> RockyFluent[📝 Fluentd: inactive]
+
+    Vault --> Validate{✅ All Checks<br/>Passed?}
+    Datadog --> Validate
+    Falcon --> Validate
+    AL2SSM --> Validate
+    AL2TD --> Validate
+    AL2023SSM --> Validate
+    AL2023Fluent --> Validate
+    UbuntuSSM --> Validate
+    UbuntuTD --> Validate
+    RockySSM --> Validate
+    RockyFluent --> Validate
+
+    Validate -->|Yes| Snapshot[📸 Create AMI Snapshot]
+    Validate -->|No| Abort[❌ Abort Build<br/>Delete Instance]
+
+    Snapshot --> Tag[🏷️ Tag AMI]
+    Tag --> Success([✨ Golden AMI Ready])
+    Abort --> Fail([💥 Build Failed])
+
+    style Start fill:#4A90E2
+    style Success fill:#7ED321
+    style Fail fill:#D0021B
+    style Validate fill:#F5A623
+    style CheckAll fill:#9013FE
+    style CheckDist fill:#9013FE
+```
+
+**Execution steps:**
 1. Packer boots EC2 instance from base AMI
 2. Packer installs Ansible on the instance
 3. Packer runs playbook locally inside the instance
@@ -78,8 +139,10 @@ provisioner "ansible-local" {
 
 ---
 
-## Diagrams
+## Additional Resources
 
-Visual representations of the AMI validation workflow:
-- [AMI lifecycle with Ansible validation](./ami_lifecycle_ansible_validation_remixed.png)
-- [Mobile-friendly flowchart](./A_flowchart_infographic_illustrates_the_process_of.png)
+The Mermaid diagram above provides an accurate, text-based representation of the complete workflow that stays synchronized with code changes.
+
+Legacy diagrams (may be outdated):
+- [AMI lifecycle PNG](./ami_lifecycle_ansible_validation_remixed.png)
+- [Mobile-friendly flowchart PNG](./A_flowchart_infographic_illustrates_the_process_of.png)
